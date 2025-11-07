@@ -1,3 +1,4 @@
+---
 # MkDocs configuration for czi-pyramidizer
 # Requires: pip install mkdocs mkdocs-material pymdown-extensions
 
@@ -11,44 +12,44 @@ repo_name: ZEISS/czi-pyramidizer
 docs_dir: docs
 site_dir: site
 
-# Theme (Material). If not desired, change to: theme: { name: mkdocs }
+# Theme (Material)
 theme:
- name: material
- language: en
- features:
- - navigation.instant
- - navigation.expand
- - navigation.sections
- - content.code.copy
- - search.suggest
- - search.highlight
- palette:
-  - scheme: default
-    primary: indigo
-    accent: indigo
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.expand
+    - navigation.sections
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
 
 plugins:
- - search
+  - search
 
 markdown_extensions:
- - admonition
- - toc:
-    permalink: true
- - codehilite:
-    guess_lang: false
- - attr_list
- - pymdownx.highlight
- - pymdownx.inlinehilite
- - pymdownx.superfences
- - pymdownx.details
+  - admonition
+  - toc:
+      permalink: true
+  - codehilite:
+      guess_lang: false
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
 
-# Navigation (create these files under docs/)
+# Navigation
 nav:
- - Home: index.md
- - Getting Started: getting-started.md
- - Usage:
-    - CLI: usage/cli.md
-    - Examples: usage/examples.md
- - Development:
-    - Build: dev/build.md
-    - Contributing: dev/contributing.md
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Usage:
+      - CLI: usage/cli.md
+      - Examples: usage/examples.md
+  - Development:
+      - Build: dev/build.md
+      - Contributing: dev/contributing.md
