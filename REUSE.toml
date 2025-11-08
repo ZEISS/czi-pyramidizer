@@ -1,0 +1,34 @@
+version = 1
+SPDX-PackageName = "czi-pyramidizer"
+SPDX-PackageSupplier = "Carl Zeiss Microscopy GmbH <github.microscopy@zeiss.com>"
+SPDX-PackageDownloadLocation = "https://github.com/ZEISS/warpaffine"
+
+[[annotations]]
+path = [".editorconfig", ".gitignore", ".mega-linter.yml", "CPPLINT.cfg", "mkdocs.yml", "README.md", "REUSE.toml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ".github/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ".atomineer/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "doc/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "docs/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
+SPDX-License-Identifier = "MIT"
