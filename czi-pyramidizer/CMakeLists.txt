@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024 Carl Zeiss Microscopy GmbH
+#
+# SPDX-License-Identifier: MIT
 
 set(CZIPYRAMIDIZER_SOURCES
   "czi-pyramidizer.cpp"
@@ -13,11 +16,11 @@ target_link_libraries(czi-pyramidizer PRIVATE libpyramidizer)
 
 
 if (CZIPYRAMIDIZER_HAVE_WIN32_API)
-	set(czipyramidizer_UNIX_ENVIRONMENT 0)
-	set(czipyramidizer_WIN32_ENVIRONMENT 1)
+    set(czipyramidizer_UNIX_ENVIRONMENT 0)
+    set(czipyramidizer_WIN32_ENVIRONMENT 1)
 else()
-  set(czipyramidizer_UNIX_ENVIRONMENT 1)
-	set(czipyramidizer_WIN32_ENVIRONMENT 0)
+    set(czipyramidizer_UNIX_ENVIRONMENT 1)
+    set(czipyramidizer_WIN32_ENVIRONMENT 0)
 endif()
 
 configure_file (

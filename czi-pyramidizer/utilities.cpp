@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 Carl Zeiss Microscopy GmbH
+//
+// SPDX-License-Identifier: MIT
+
 #include "utilities.h"
 
 #if CZIPYRAMIDIZER_WIN32_ENVIRONMENT

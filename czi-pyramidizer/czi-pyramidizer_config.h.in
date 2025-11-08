@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 Carl Zeiss Microscopy GmbH
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #define CZIPYRAMIDIZER_UNIX_ENVIRONMENT @czipyramidizer_UNIX_ENVIRONMENT@
