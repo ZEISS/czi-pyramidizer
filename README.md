@@ -7,6 +7,14 @@
 
 czi-pyramidizer is a stand-alone tool (libCZI-based) for creating a multi-resolution pyramid for a given CZI.
 
+It is expecially useful for creating pyramids for CZI-documents that have been create with [libCZI](https://github.com/ZEISS/libczi), [pylibCZI](https://github.com/ZEISS/pylibczirw) or related tools,
+that do not support automatic pyramid creation.
+
+# Features
+
+- Create multi-resolution pyramids for CZI files
+- Check whether a CZI file already contains a pyramid
+
 ## Guidelines
 [Code of Conduct](./CODE_OF_CONDUCT.md)  
 [Contributing](./CONTRIBUTING.md)
