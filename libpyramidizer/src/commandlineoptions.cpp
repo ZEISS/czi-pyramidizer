@@ -430,8 +430,8 @@ CommandLineOptions::ParseResult CommandLineOptions::Parse(int argc, char** argv)
         "     given), this indicates that there is no need to generate a pyramid - it is"
         "     either not needed or already present. "
         "\\n1 - Generic failure code - some kind of error occurred, which is not further characterized by the exit code. "
-        "\\n10 - If checking if a pyramid is needed, this exit code indicates that a pyramid is needed. "
-        "\\n11 - It was determined that no pyramid needs to be created. "
+        "\\n10 - In check-only mode: this exit code indicates that a pyramid is needed. "
+        "\\n11 - If mode-of-operation=IfNeeded - no action taken as no pyramid was needed. "
         "\\n99 - There was an error parsing the command-line arguments.";
 
     const auto lines = CustomFormatter::wrap(footer_text, 80);

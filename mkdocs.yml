@@ -50,6 +50,3 @@ nav:
   - Usage:
       - CLI: usage/cli.md
       - Examples: usage/examples.md
-  - Development:
-      - Build: dev/build.md
-      - Contributing: dev/contributing.md

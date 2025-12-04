@@ -107,8 +107,9 @@ is needed.
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success / no pyramid needed (check mode) |
+| 0 | Success / no pyramid needed (check-only mode) |
 | 1 | General error |
 | 10 | Pyramid needed (check mode) |
+| 11 | No pyramid needed (with mode-of-operation=IfNeeded) |
 | 99 | Error parsing the command line argument |
 
