@@ -227,7 +227,7 @@ DoPyramidize::PyramidRegionInfo DoPyramidize::Impl::DoPlane(const PlaneEnumerato
         // If we only need one layer, we do not have to keep the tiles of the next layer (in order to create the next layer).
         this->DoLayer0(
             pyramid_region,
-            [&at_least_one_pyramid_tile](const std::shared_ptr<libCZI::IBitmapData>& pyramid_tile, const libCZI::IntRect& rect)->void
+            [&at_least_one_pyramid_tile](const std::shared_ptr<libCZI::IBitmapData>&, const libCZI::IntRect&)->void
             {
                 at_least_one_pyramid_tile = true;
             });
