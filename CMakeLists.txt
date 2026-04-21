@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.15)
  
 project(czi-pyramidizer
-      VERSION 0.1.1
+      VERSION 0.1.2
       HOMEPAGE_URL "https://dev.azure.com/ZEISSgroup/RMS-DEV/_git/czi_pyramidizer"
       DESCRIPTION "generate image-pyramid")
 
