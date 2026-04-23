@@ -75,14 +75,20 @@ jobs:
           echo "artifactName=${name}" >> "$GITHUB_ENV"
           echo "artifactPath=${{github.workspace}}/artifact/${name}" >> "$GITHUB_ENV"
 
-      - name: Generate SPDX SBOM
-        uses: anchore/sbom-action@v0
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          path: artifact/${{ env.artifactName }}
-          format: spdx-json
-          output-file: artifact/${{ env.artifactName }}/${{ env.artifactName }}.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
+          python-version: "3.x"
+
+      - name: Generate SPDX SBOM
+        shell: pwsh
+        run: |
+          python release/generate-spdx-sbom.py `
+            --metadata release/sbom-components.json `
+            --artifact-dir "artifact/$env:artifactName" `
+            --artifact-name "$env:artifactName" `
+            --platform "windows-arm64" `
+            --output "artifact/$env:artifactName/$env:artifactName.spdx.json"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

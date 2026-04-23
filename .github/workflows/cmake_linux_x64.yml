@@ -63,13 +63,14 @@ jobs:
           echo "artifactPath=${{github.workspace}}/artifact/${name}" >> "$GITHUB_ENV"
 
       - name: Generate SPDX SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          path: artifact/${{ env.artifactName }}
-          format: spdx-json
-          output-file: artifact/${{ env.artifactName }}/${{ env.artifactName }}.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
+        shell: bash
+        run: |
+          python3 release/generate-spdx-sbom.py \
+            --metadata release/sbom-components.json \
+            --artifact-dir "artifact/${artifactName}" \
+            --artifact-name "${artifactName}" \
+            --platform "linux-x64" \
+            --output "artifact/${artifactName}/${artifactName}.spdx.json"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

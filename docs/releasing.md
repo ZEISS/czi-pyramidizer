@@ -54,6 +54,15 @@ platform-specific dependencies.
 
 The SBOM should identify exact versions or source revisions where possible.
 
+### SBOM Next Steps
+
+The first release SBOM intentionally lists direct dependencies that the project
+declares or knowingly links. Future release improvements should add reliable
+transitive dependency capture from the package managers used by each platform,
+including vcpkg, apt, and apk. That work should be based on pinned package
+manifests or generated dependency reports so that the SBOM remains accurate and
+reviewable.
+
 ## Checksums
 
 The release should include a `SHA256SUMS` file with checksums for all published
