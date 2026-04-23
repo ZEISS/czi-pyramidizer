@@ -72,6 +72,14 @@ jobs:
             --platform "linux-x64" \
             --output "artifact/${artifactName}/${artifactName}.spdx.json"
 
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd "artifact/${artifactName}"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
