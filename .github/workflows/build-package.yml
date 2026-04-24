@@ -1,0 +1,520 @@
+---
+name: Build Package
+
+# Shared workflow for building, testing, and packaging one platform variant of
+# czi-pyramidizer. The normal CI workflows and the release workflow both call
+# this file so the packaging logic lives in one place.
+
+'on':
+  workflow_call:
+    inputs:
+      target:
+        description: Build target identifier
+        required: true
+        type: string
+      release_tag:
+        description: Optional release tag used for packaged archive names
+        required: false
+        default: ""
+        type: string
+      package_archive:
+        description: Package the artifact directory into a release archive
+        required: false
+        default: false
+        type: boolean
+      upload_name:
+        description: Optional upload-artifact name override
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  windows-x64:
+    if: ${{ inputs.target == 'windows-x64' }}
+    runs-on: windows-latest
+    env:
+      ARCHITECTURE: x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: 'C:/vcpkg/installed'
+          key: >-
+            ${{
+              inputs.package_archive
+              && 'release-vcpkg-x64-windows-'
+              || 'vcpkg-x64-windows-'
+            }}
+          restore-keys: |
+            release-vcpkg-x64-windows-
+            vcpkg-x64-windows-
+
+      - name: Install dependencies
+        run: |
+          vcpkg install opencv4[core,jpeg,png,quirc,tiff,webp]:x64-windows-static
+          vcpkg install azure-storage-blobs-cpp:x64-windows-static
+          vcpkg install azure-identity-cpp:x64-windows-static
+          vcpkg install 'curl[ssl]' --triplet x64-windows-static
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake -A "${ARCHITECTURE}" \
+              -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+              -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
+              -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
+              -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON \
+              -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake \
+              -DVCPKG_TARGET_TRIPLET=x64-windows-static ..
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
+
+      - name: Run Unit-Tests
+        shell: bash
+        run: |
+          cd build
+          ctest -C "${BUILD_TYPE}"
+
+      - name: Prepare artifact contents
+        shell: bash
+        run: |
+          mkdir -p artifact dist
+          # Release jobs pass an explicit tag so the package names line up with
+          # the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.release_tag }}"
+          if [ -z "$version" ]; then
+            version="$(git describe --always)"
+          fi
+          name="czi-pyramidizer-windows-${ARCHITECTURE,,}-${version}"
+          mkdir "artifact/${name}"
+          cp build/czi-pyramidizer/Release/czi-pyramidizer.exe "artifact/${name}/"
+          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
+          echo "artifactName=${name}" >> "$GITHUB_ENV"
+          echo "artifactPath=${{ github.workspace }}/artifact/${name}" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Generate SPDX SBOM
+        shell: pwsh
+        run: |
+          python release/generate-spdx-sbom.py `
+            --metadata release/sbom-components.json `
+            --artifact-dir "artifact/$env:artifactName" `
+            --artifact-name "$env:artifactName" `
+            --platform "windows-x64" `
+            --output "artifact/$env:artifactName/$env:artifactName.spdx.json"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          Push-Location "artifact/$env:artifactName"
+          Get-ChildItem -File |
+            Where-Object { $_.Name -ne "SHA256SUMS" } |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (
+                Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName
+              ).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            } |
+            Set-Content -Encoding ascii SHA256SUMS
+          Pop-Location
+
+      - name: Archive release package
+        if: ${{ inputs.package_archive }}
+        shell: pwsh
+        run: |
+          # Release jobs publish a single archive per platform. Regular CI jobs
+          # upload the unpacked artifact directory instead.
+          Compress-Archive `
+            -Path "artifact/$env:artifactName/*" `
+            -DestinationPath "dist/$env:artifactName.zip"
+          echo "uploadPath=${{ github.workspace }}/dist/$env:artifactName.zip" >> $env:GITHUB_ENV
+
+      - name: Set artifact upload path
+        if: ${{ !inputs.package_archive }}
+        shell: pwsh
+        run: |
+          echo "uploadPath=$env:artifactPath" >> $env:GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.upload_name != '' && inputs.upload_name || env.artifactName }}
+          path: ${{ env.uploadPath }}
+
+  windows-arm64:
+    if: ${{ inputs.target == 'windows-arm64' }}
+    runs-on: windows-11-arm
+    env:
+      ARCHITECTURE: ARM64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: 'C:/vcpkg/installed'
+          key: >-
+            ${{
+              inputs.package_archive
+              && 'release-vcpkg-arm64-windows-'
+              || 'vcpkg-arm64-windows-'
+            }}
+          restore-keys: |
+            release-vcpkg-arm64-windows-
+            vcpkg-arm64-windows-
+
+      - name: Install dependencies
+        run: |
+          vcpkg install opencv4[core,jpeg,png,quirc,tiff,webp]:arm64-windows-static
+          vcpkg install azure-storage-blobs-cpp:arm64-windows-static
+          vcpkg install azure-identity-cpp:arm64-windows-static
+          vcpkg install 'curl[ssl]' --triplet arm64-windows-static
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake -A "${ARCHITECTURE}" \
+              -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+              -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
+              -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
+              -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON \
+              -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake \
+              -DVCPKG_TARGET_TRIPLET=arm64-windows-static ..
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config "${BUILD_TYPE}" -j
+
+      - name: Run Unit-Tests
+        shell: bash
+        run: |
+          cd build
+          ctest -C "${BUILD_TYPE}"
+
+      - name: Prepare artifact contents
+        shell: bash
+        run: |
+          mkdir -p artifact dist
+          # Release jobs pass an explicit tag so the package names line up with
+          # the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.release_tag }}"
+          if [ -z "$version" ]; then
+            version="$(git describe --always)"
+          fi
+          name="czi-pyramidizer-windows-${ARCHITECTURE,,}-${version}"
+          mkdir "artifact/${name}"
+          cp build/czi-pyramidizer/Release/czi-pyramidizer.exe "artifact/${name}/"
+          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
+          echo "artifactName=${name}" >> "$GITHUB_ENV"
+          echo "artifactPath=${{ github.workspace }}/artifact/${name}" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Generate SPDX SBOM
+        shell: pwsh
+        run: |
+          python release/generate-spdx-sbom.py `
+            --metadata release/sbom-components.json `
+            --artifact-dir "artifact/$env:artifactName" `
+            --artifact-name "$env:artifactName" `
+            --platform "windows-arm64" `
+            --output "artifact/$env:artifactName/$env:artifactName.spdx.json"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          Push-Location "artifact/$env:artifactName"
+          Get-ChildItem -File |
+            Where-Object { $_.Name -ne "SHA256SUMS" } |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (
+                Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName
+              ).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            } |
+            Set-Content -Encoding ascii SHA256SUMS
+          Pop-Location
+
+      - name: Archive release package
+        if: ${{ inputs.package_archive }}
+        shell: pwsh
+        run: |
+          # Release jobs publish a single archive per platform. Regular CI jobs
+          # upload the unpacked artifact directory instead.
+          Compress-Archive `
+            -Path "artifact/$env:artifactName/*" `
+            -DestinationPath "dist/$env:artifactName.zip"
+          echo "uploadPath=${{ github.workspace }}/dist/$env:artifactName.zip" >> $env:GITHUB_ENV
+
+      - name: Set artifact upload path
+        if: ${{ !inputs.package_archive }}
+        shell: pwsh
+        run: |
+          echo "uploadPath=$env:artifactPath" >> $env:GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.upload_name != '' && inputs.upload_name || env.artifactName }}
+          path: ${{ env.uploadPath }}
+
+  linux-x64:
+    if: ${{ inputs.target == 'linux-x64' }}
+    runs-on: ubuntu-latest
+    env:
+      ARCHITECTURE: x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev
+          sudo apt-get install -y libssl-dev
+          vcpkg install azure-storage-blobs-cpp azure-identity-cpp
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
+            -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
+            -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON \
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+            ..
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
+
+      - name: Run Unit-Tests
+        shell: bash
+        run: |
+          cd build
+          ctest -C "${BUILD_TYPE}"
+
+      - name: Prepare artifact contents
+        shell: bash
+        run: |
+          mkdir -p artifact dist
+          # Release jobs pass an explicit tag so the package names line up with
+          # the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.release_tag }}"
+          if [ -z "$version" ]; then
+            version="$(git describe --always)"
+          fi
+          name="czi-pyramidizer-linux-${ARCHITECTURE,,}-${version}"
+          mkdir "artifact/${name}"
+          cp build/czi-pyramidizer/czi-pyramidizer "artifact/${name}/"
+          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
+          echo "artifactName=${name}" >> "$GITHUB_ENV"
+          echo "artifactPath=${{ github.workspace }}/artifact/${name}" >> "$GITHUB_ENV"
+
+      - name: Generate SPDX SBOM
+        shell: bash
+        run: |
+          python3 release/generate-spdx-sbom.py \
+            --metadata release/sbom-components.json \
+            --artifact-dir "artifact/${artifactName}" \
+            --artifact-name "${artifactName}" \
+            --platform "linux-x64" \
+            --output "artifact/${artifactName}/${artifactName}.spdx.json"
+
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd "artifact/${artifactName}"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Archive release package
+        if: ${{ inputs.package_archive }}
+        shell: bash
+        run: |
+          # Linux release assets are published as tar.gz archives to preserve
+          # executable bits and align with common Unix packaging expectations.
+          tar -C artifact -czf "dist/${artifactName}.tar.gz" "${artifactName}"
+          echo "uploadPath=${{ github.workspace }}/dist/${artifactName}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Set artifact upload path
+        if: ${{ !inputs.package_archive }}
+        shell: bash
+        run: |
+          echo "uploadPath=${artifactPath}" >> "$GITHUB_ENV"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.upload_name != '' && inputs.upload_name || env.artifactName }}
+          path: ${{ env.uploadPath }}
+
+  alpine-linux-x64:
+    if: ${{ inputs.target == 'alpine-linux-x64' }}
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+    env:
+      ARCHITECTURE: x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            bash \
+            cmake \
+            make \
+            g++ \
+            ninja \
+            git \
+            build-base \
+            python3-dev \
+            linux-headers
+
+      - name: Build azure-sdk-for-cpp
+        run: |
+          apk add --no-cache perl gcompat zip unzip curl
+          mkdir vcpkg
+          cd vcpkg
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          VCPKGTOOLCHAINFILE="$(pwd)/scripts/buildsystems/vcpkg.cmake"
+          ./bootstrap-vcpkg.sh
+          ./vcpkg install azure-storage-blobs-cpp azure-identity-cpp
+          echo "VCPKGTOOLCHAINFILE=$VCPKGTOOLCHAINFILE" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: |
+          apk add --no-cache openssl-dev
+          mkdir opencvbuild
+          cd opencvbuild
+          git clone --branch 4.10.0 --depth 1 https://github.com/opencv/opencv.git
+          git clone --branch 4.10.0 --depth 1 https://github.com/opencv/opencv_contrib.git
+          mkdir opencv/build && cd opencv/build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DOPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules \
+            -DBUILD_opencv_apps=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_PERF_TESTS=OFF \
+            -DBUILD_DOCS=OFF \
+            ..
+          ninja
+          ninja install
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
+            -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
+            -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=OFF \
+            -DCMAKE_C_FLAGS="-static-libgcc" \
+            -DCMAKE_CXX_FLAGS="-static-libgcc -static-libstdc++" \
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKGTOOLCHAINFILE}" \
+            ..
+
+      - name: Build
+        run: |
+          cd build
+          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
+
+      - name: Run Unit-Tests
+        run: |
+          cd build
+          ctest -C "${BUILD_TYPE}"
+
+      - name: Prepare artifact contents
+        run: |
+          mkdir -p artifact dist
+          # Release jobs pass an explicit tag so the package names line up with
+          # the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.release_tag }}"
+          if [ -z "$version" ]; then
+            version="$(git describe --always)"
+          fi
+          name="czi-pyramidizer-alpine-linux-${ARCHITECTURE,,}-${version}"
+          mkdir "artifact/${name}"
+          cp build/czi-pyramidizer/czi-pyramidizer "artifact/${name}/"
+          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
+          echo "artifactName=${name}" >> "$GITHUB_ENV"
+          echo "artifactPath=${{ github.workspace }}/artifact/${name}" >> "$GITHUB_ENV"
+
+      - name: Generate SPDX SBOM
+        run: |
+          python3 release/generate-spdx-sbom.py \
+            --metadata release/sbom-components.json \
+            --artifact-dir "artifact/${artifactName}" \
+            --artifact-name "${artifactName}" \
+            --platform "alpine-linux-x64" \
+            --output "artifact/${artifactName}/${artifactName}.spdx.json"
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd "artifact/${artifactName}"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Archive release package
+        if: ${{ inputs.package_archive }}
+        run: |
+          # Linux release assets are published as tar.gz archives to preserve
+          # executable bits and align with common Unix packaging expectations.
+          tar -C artifact -czf "dist/${artifactName}.tar.gz" "${artifactName}"
+          echo "uploadPath=${{ github.workspace }}/dist/${artifactName}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Set artifact upload path
+        if: ${{ !inputs.package_archive }}
+        run: |
+          echo "uploadPath=${artifactPath}" >> "$GITHUB_ENV"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.upload_name != '' && inputs.upload_name || env.artifactName }}
+          path: ${{ env.uploadPath }}

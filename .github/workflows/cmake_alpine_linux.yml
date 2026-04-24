@@ -1,6 +1,9 @@
 ---
 name: CMake-Alpine-Linux-x64
 
+# Thin CI entry point that validates the Alpine Linux x64 package build by
+# calling the shared build-package workflow.
+
 'on':
   push:
     branches: ["main"]
@@ -18,100 +21,6 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container:
-      image: alpine:latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          apk add --no-cache \
-            bash \
-            cmake \
-            make \
-            g++ \
-            ninja \
-            git \
-            build-base \
-            python3-dev \
-            linux-headers
-
-      - name: build azure-sdk-for-cpp
-        run: |
-          apk add --no-cache perl gcompat zip unzip curl
-          mkdir vcpkg
-          cd vcpkg
-          git clone https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          VCPKGTOOLCHAINFILE="$(pwd)/scripts/buildsystems/vcpkg.cmake"
-          ./bootstrap-vcpkg.sh
-          ./vcpkg install azure-storage-blobs-cpp azure-identity-cpp
-           echo "VCPKGTOOLCHAINFILE=$VCPKGTOOLCHAINFILE" >> "$GITHUB_ENV"
-
-      - name: Install dependencies
-        run: |
-          apk add --no-cache openssl-dev
-          # here we install OpenCV from source because we want to link it statically, which does not seem to be possible with the
-          # pre-built Alpine package
-          mkdir opencvbuild
-          cd opencvbuild
-          git clone --branch 4.10.0 --depth 1 https://github.com/opencv/opencv.git
-          git clone --branch 4.10.0 --depth 1 https://github.com/opencv/opencv_contrib.git
-          mkdir opencv/build && cd opencv/build
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DOPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules -DBUILD_opencv_apps=OFF -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_DOCS=OFF ..
-          ninja
-          ninja install
-
-      - name: Configure CMake
-        run: |
-          mkdir build
-          cd build
-          # note that we instruct to link statically against libgcc and libstdc++ to avoid runtime dependencies
-          cmake -G Ninja -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DLIBCZI_BUILD_CURL_BASED_STREAM=ON -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=OFF -DCMAKE_C_FLAGS="-static-libgcc" -DCMAKE_CXX_FLAGS="-static-libgcc -static-libstdc++" -DCMAKE_TOOLCHAIN_FILE="${VCPKGTOOLCHAINFILE}" ..
-
-      - name: Build
-        run: |
-          cd build
-          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
-
-      - name: Run Unit-Tests
-        run: |
-          cd build
-          ctest -C "${BUILD_TYPE}"
-
-      - name: Prepare artifacts
-        run: |
-          bash -c '
-          mkdir artifact
-          name="czi-pyramidizer-alpine-linux-${ARCHITECTURE,,}-${GITHUB_SHA:0:7}"
-          mkdir "artifact/${name}"
-          cp build/czi-pyramidizer/czi-pyramidizer "artifact/${name}/"
-          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
-          echo "artifactName=${name}" >> "$GITHUB_ENV"
-          echo "artifactPath=${{github.workspace}}/artifact/${name}" >> "$GITHUB_ENV"
-          '
-
-      - name: Generate SPDX SBOM
-        run: |
-          python3 release/generate-spdx-sbom.py \
-            --metadata release/sbom-components.json \
-            --artifact-dir "artifact/${artifactName}" \
-            --artifact-name "${artifactName}" \
-            --platform "alpine-linux-x64" \
-            --output "artifact/${artifactName}/${artifactName}.spdx.json"
-
-      - name: Generate SHA-256 checksums
-        run: |
-          cd "artifact/${artifactName}"
-          find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
-            | sort -z \
-            | xargs -0 sha256sum > SHA256SUMS
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: ${{ env.artifactPath }}/
-          name: ${{ env.artifactName }}
+    uses: ./.github/workflows/build-package.yml
+    with:
+      target: alpine-linux-x64

@@ -1,6 +1,9 @@
 ---
 name: CMake-Linux-x64
 
+# Thin CI entry point that validates the Linux x64 package build by calling the
+# shared build-package workflow.
+
 'on':
   push:
     branches: ["main"]
@@ -18,70 +21,6 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libopencv-dev
-          sudo apt-get install libssl-dev -y
-          vcpkg install azure-storage-blobs-cpp azure-identity-cpp
-
-      - name: Configure CMake
-        shell: bash
-        run: |
-          mkdir build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DLIBCZI_BUILD_CURL_BASED_STREAM=ON -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON -DCMAKE_TOOLCHAIN_FILE="${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake" ..
-
-      - name: Build
-        shell: bash
-        run: |
-          cd build
-          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
-
-      - name: Run Unit-Tests
-        shell: bash
-        run: |
-          cd build
-          ctest -C "${BUILD_TYPE}"
-
-      - name: Prepare artifacts
-        shell: bash
-        run: |
-          mkdir artifact
-          name="czi-pyramidizer-linux-${ARCHITECTURE,,}-$(git describe --always)"
-          mkdir "artifact/${name}"
-          cp build/czi-pyramidizer/czi-pyramidizer "artifact/${name}/"
-          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
-          echo "artifactName=${name}" >> "$GITHUB_ENV"
-          echo "artifactPath=${{github.workspace}}/artifact/${name}" >> "$GITHUB_ENV"
-
-      - name: Generate SPDX SBOM
-        shell: bash
-        run: |
-          python3 release/generate-spdx-sbom.py \
-            --metadata release/sbom-components.json \
-            --artifact-dir "artifact/${artifactName}" \
-            --artifact-name "${artifactName}" \
-            --platform "linux-x64" \
-            --output "artifact/${artifactName}/${artifactName}.spdx.json"
-
-      - name: Generate SHA-256 checksums
-        shell: bash
-        run: |
-          cd "artifact/${artifactName}"
-          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
-            | sort -z \
-            | xargs -0 sha256sum > SHA256SUMS
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: ${{ env.artifactPath }}/
-          name: ${{ env.artifactName }}
+    uses: ./.github/workflows/build-package.yml
+    with:
+      target: linux-x64
