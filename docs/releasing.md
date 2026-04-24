@@ -32,6 +32,11 @@ The release should also provide:
 - SHA-256 checksums for all release assets
 - source and build information sufficient to rebuild the released binaries
 
+The repository contains a dedicated GitHub Actions release workflow in
+`.github/workflows/release.yml`. It builds all supported platform packages from
+the release tag, creates archives, generates per-package SBOMs and checksums,
+and publishes the resulting archives to a GitHub Release.
+
 ## Static Linking
 
 Release binaries are built with static linking where practical. In particular,
