@@ -22,4 +22,3 @@ env:
 jobs:
   build:
     uses: ./.github/workflows/build-package-windows-arm64.yml
-    with:

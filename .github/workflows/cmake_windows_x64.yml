@@ -22,4 +22,3 @@ env:
 jobs:
   build:
     uses: ./.github/workflows/build-package-windows-x64.yml
-    with:
