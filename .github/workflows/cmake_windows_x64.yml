@@ -21,6 +21,5 @@ env:
 
 jobs:
   build:
-    uses: ./.github/workflows/build-package.yml
+    uses: ./.github/workflows/build-package-windows-x64.yml
     with:
-      target: windows-x64

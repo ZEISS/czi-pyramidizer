@@ -2,9 +2,9 @@
 name: Release
 
 # Orchestrates a full GitHub Release from a tag (or a manual dry run). The
-# per-platform build logic lives in build-package.yml; this workflow only
-# coordinates the platform jobs, assembles the final release assets, and
-# publishes the GitHub Release entry.
+# per-platform build logic lives in the platform-specific reusable workflows;
+# this workflow only coordinates the platform jobs, assembles the final release
+# assets, and publishes the GitHub Release entry.
 
 'on':
   push:
@@ -41,9 +41,8 @@ env:
 
 jobs:
   windows-x64:
-    uses: ./.github/workflows/build-package.yml
+    uses: ./.github/workflows/build-package-windows-x64.yml
     with:
-      target: windows-x64
       release_tag: >-
         ${{
           github.event_name == 'workflow_dispatch'
@@ -54,9 +53,8 @@ jobs:
       upload_name: release-windows-x64
 
   windows-arm64:
-    uses: ./.github/workflows/build-package.yml
+    uses: ./.github/workflows/build-package-windows-arm64.yml
     with:
-      target: windows-arm64
       release_tag: >-
         ${{
           github.event_name == 'workflow_dispatch'
@@ -67,9 +65,8 @@ jobs:
       upload_name: release-windows-arm64
 
   linux-x64:
-    uses: ./.github/workflows/build-package.yml
+    uses: ./.github/workflows/build-package-linux-x64.yml
     with:
-      target: linux-x64
       release_tag: >-
         ${{
           github.event_name == 'workflow_dispatch'
@@ -80,9 +77,8 @@ jobs:
       upload_name: release-linux-x64
 
   alpine-linux-x64:
-    uses: ./.github/workflows/build-package.yml
+    uses: ./.github/workflows/build-package-alpine-linux-x64.yml
     with:
-      target: alpine-linux-x64
       release_tag: >-
         ${{
           github.event_name == 'workflow_dispatch'
