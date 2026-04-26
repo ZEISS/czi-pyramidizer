@@ -47,6 +47,7 @@ jobs:
           apk add --no-cache \
             bash \
             cmake \
+            gnu-tar \
             make \
             g++ \
             ninja \
