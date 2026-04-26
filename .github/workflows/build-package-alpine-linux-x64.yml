@@ -30,6 +30,7 @@ permissions:
 env:
   BUILD_TYPE: Release
   ARCHITECTURE: x64
+  OPENCV_VERSION: 4.10.0
 
 jobs:
   build-package:
@@ -54,6 +55,12 @@ jobs:
             python3-dev \
             linux-headers
 
+      - name: Cache OpenCV install
+        uses: actions/cache@v4
+        with:
+          path: opencv-install
+          key: alpine-opencv-4.10.0-static-core
+
       - name: Build azure-sdk-for-cpp
         run: |
           apk add --no-cache perl gcompat zip unzip curl
@@ -69,21 +76,28 @@ jobs:
       - name: Install dependencies
         run: |
           apk add --no-cache openssl-dev
-          mkdir opencvbuild
-          cd opencvbuild
-          git clone --branch 4.10.0 --depth 1 https://github.com/opencv/opencv.git
-          mkdir opencv/build && cd opencv/build
-          cmake -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DBUILD_LIST=core,imgproc \
-            -DBUILD_opencv_apps=OFF \
-            -DBUILD_TESTS=OFF \
-            -DBUILD_PERF_TESTS=OFF \
-            -DBUILD_DOCS=OFF \
-            ..
-          ninja
-          ninja install
+          if [ ! -f \
+            "${GITHUB_WORKSPACE}/opencv-install/lib/cmake/opencv4/OpenCVConfig.cmake" ]; then
+            mkdir opencvbuild
+            cd opencvbuild
+            git clone --branch "${OPENCV_VERSION}" --depth 1 https://github.com/opencv/opencv.git
+            git clone --branch "${OPENCV_VERSION}" --depth 1 \
+              https://github.com/opencv/opencv_contrib.git
+            mkdir opencv/build && cd opencv/build
+            cmake -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/opencv-install" \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DOPENCV_EXTRA_MODULES_PATH=../../opencv_contrib/modules \
+              -DBUILD_opencv_apps=OFF \
+              -DBUILD_TESTS=OFF \
+              -DBUILD_PERF_TESTS=OFF \
+              -DBUILD_DOCS=OFF \
+              ..
+            ninja
+            ninja install
+          fi
+          echo "OPENCV_DIR=${GITHUB_WORKSPACE}/opencv-install/lib/cmake/opencv4" >> "$GITHUB_ENV"
 
       - name: Configure CMake
         run: |
@@ -91,6 +105,7 @@ jobs:
           cd build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DOpenCV_DIR="${OPENCV_DIR}" \
             -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
             -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
             -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=OFF \
