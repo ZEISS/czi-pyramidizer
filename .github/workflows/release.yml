@@ -32,6 +32,10 @@ permissions:
 
 env:
   BUILD_TYPE: Release
+  # GitHub is deprecating Node.js 20 for JavaScript-based actions.
+  # Force the hosted actions we rely on to run on Node.js 24 now, so
+  # checkout/download-artifact steps do not start warning or break later.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   RELEASE_TAG: >-
     ${{
       github.event_name == 'workflow_dispatch'
