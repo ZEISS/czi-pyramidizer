@@ -123,19 +123,19 @@ jobs:
             # concrete version that ended up in this Windows build.
             $escapedPrefix = [regex]::Escape($PackagePrefix)
             $line = $vcpkgList | Where-Object {
-              $_ -match "^${escapedPrefix}(\\[[^\\]]+\\])?\\s+"
+              $_ -match "^${escapedPrefix}(\\[[^\\]]+\\])?(:[^\\s]+)?\\s+"
             } | Select-Object -First 1
             if (-not $line) {
               throw "Unable to determine vcpkg version for $PackagePrefix."
             }
             $match = [regex]::Match(
               $line,
-              "^${escapedPrefix}(\\[[^\\]]+\\])?\\s+([^\\s]+)"
+              "^${escapedPrefix}(\\[[^\\]]+\\])?(:[^\\s]+)?\\s+([^\\s]+)"
             )
             if (-not $match.Success) {
               throw "Unexpected vcpkg list output for $PackagePrefix: $line"
             }
-            $match.Groups[2].Value
+            $match.Groups[3].Value
           }
 
           $opencvVersion = Get-VcpkgVersion "opencv4"
