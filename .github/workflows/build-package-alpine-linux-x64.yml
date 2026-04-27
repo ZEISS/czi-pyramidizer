@@ -46,6 +46,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_tag != '' && inputs.release_tag || github.ref }}
 
       - name: Install build dependencies
         run: |

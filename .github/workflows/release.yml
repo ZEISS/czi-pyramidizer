@@ -99,6 +99,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download release packages
         uses: actions/download-artifact@v7
@@ -190,7 +192,7 @@ jobs:
           else
             gh release create \
               --title "$RELEASE_TAG" \
-              --target "$GITHUB_SHA" \
+              --target "$RELEASE_TAG" \
               --notes-file release-notes.md \
               $create_draft_flag \
               $create_prerelease_flag \

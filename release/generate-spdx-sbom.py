@@ -64,7 +64,7 @@ def file_checksum(path, algorithm):
 
 def package_verification_code(file_sha1s):
     digest = hashlib.sha1()
-    for file_sha1 in sorted(file_sha1s):
+    for _file_name, file_sha1 in sorted(file_sha1s, key=lambda item: item[0]):
         digest.update(file_sha1.encode("ascii"))
     return digest.hexdigest()
 
@@ -214,7 +214,7 @@ def main():
         ):
             continue
         file_sha1 = file_checksum(path, "sha1")
-        file_sha1s.append(file_sha1)
+        file_sha1s.append((path.name, file_sha1))
         file_id = spdx_id(f"File-{path.name}")
         files.append(
             {

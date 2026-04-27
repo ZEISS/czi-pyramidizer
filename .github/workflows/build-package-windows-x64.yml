@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_tag != '' && inputs.release_tag || github.ref }}
 
       - name: Cache vcpkg
         uses: actions/cache@v5
