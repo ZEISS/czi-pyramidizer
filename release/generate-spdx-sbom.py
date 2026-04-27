@@ -17,6 +17,14 @@ checksums for the release package contents, and leaves unpinned package-manager
 versions as ``NOASSERTION``. Transitive dependency capture from vcpkg, apt, and
 apk should be added separately once those inputs are pinned or exported in a
 machine-readable form.
+
+Components may be restricted to selected release targets with either exact
+``platforms`` entries or ``platformPrefixes`` entries in the metadata file.
+Exact platform names are useful for targets with a stable identifier, such as
+``alpine-linux-x64`` or ``windows-arm64``. Prefixes are used for target families
+whose full identifier is detected from the build runner, such as
+``ubuntu-24.04-x64``. This keeps the metadata accurate today while avoiding a
+future edit when the pinned Ubuntu runner is intentionally advanced.
 """
 
 import argparse
@@ -49,8 +57,20 @@ def package_verification_code(file_sha1s):
 
 
 def include_component(component, platform):
+    """Return whether a component belongs in the SBOM for ``platform``.
+
+    ``platforms`` contains exact target identifiers. ``platformPrefixes`` is a
+    small escape hatch for build targets whose versioned identifier is detected
+    at build time, for example an Ubuntu runner label derived from
+    /etc/os-release.
+    """
     platforms = component.get("platforms")
-    return not platforms or platform in platforms
+    platform_prefixes = component.get("platformPrefixes", [])
+    return (
+        (not platforms and not platform_prefixes)
+        or platform in platforms
+        or any(platform.startswith(prefix) for prefix in platform_prefixes)
+    )
 
 
 def parse_component_versions(values):

@@ -144,9 +144,11 @@ jobs:
         shell: bash
         run: |
           cd "artifact/${artifactName}"
+          checksum_file="$(mktemp)"
           find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
             | sort -z \
-            | xargs -0 sha256sum > SHA256SUMS
+            | xargs -0 sha256sum > "$checksum_file"
+          mv "$checksum_file" SHA256SUMS
 
       - name: Archive release package
         if: ${{ inputs.package_archive }}

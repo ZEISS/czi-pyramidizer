@@ -114,9 +114,11 @@ jobs:
           # This checksum file covers the published archives themselves. Each
           # archive also contains its own internal SHA256SUMS file.
           cd release-dist
+          checksum_file="$(mktemp)"
           find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
             | sort -z \
-            | xargs -0 sha256sum > SHA256SUMS
+            | xargs -0 sha256sum > "$checksum_file"
+          mv "$checksum_file" SHA256SUMS
 
       - name: Prepare release notes
         shell: bash

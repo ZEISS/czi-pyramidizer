@@ -1,0 +1,5 @@
+---
+# The release workflow intentionally exposes manual workflow_dispatch inputs so
+# maintainers can create draft/prerelease dry runs and publish a selected tag.
+skip-check:
+  - CKV_GHA_7
