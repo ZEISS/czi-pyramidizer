@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: 2026 Carl Zeiss Microscopy GmbH
+#
+# SPDX-License-Identifier: MIT
+
 # The release workflow intentionally exposes manual workflow_dispatch inputs so
 # maintainers can create draft/prerelease dry runs and publish a selected tag.
 skip-check:
