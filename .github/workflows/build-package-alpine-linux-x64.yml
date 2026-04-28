@@ -37,7 +37,7 @@ jobs:
   build-package:
     runs-on: ubuntu-latest
     container:
-      image: alpine:latest
+      image: alpine:3.20
 
     steps:
       - name: Install checkout prerequisites
@@ -67,7 +67,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: opencv-install
-          key: alpine-opencv-4.10.0-static-core
+          key: alpine-opencv-${{ env.OPENCV_VERSION }}-static-core
 
       - name: Build azure-sdk-for-cpp
         run: |
