@@ -9,7 +9,17 @@ name: Build Package Ubuntu 24.04 x64
   workflow_call:
     inputs:
       release_tag:
-        description: Optional release tag used for packaged archive names
+        description: Optional legacy release tag used for checkout and package names
+        required: false
+        default: ""
+        type: string
+      source_ref:
+        description: Optional git ref to check out and build
+        required: false
+        default: ""
+        type: string
+      package_suffix:
+        description: Optional version or label used in package names
         required: false
         default: ""
         type: string
@@ -40,7 +50,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.release_tag != '' && inputs.release_tag || github.ref }}
+          ref: >-
+            ${{
+              inputs.source_ref != ''
+              && inputs.source_ref
+              || inputs.release_tag != '' && inputs.release_tag
+              || github.ref
+            }}
 
       - name: Collect runner distribution
         shell: bash
@@ -98,9 +114,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifact dist
-          # Release jobs pass an explicit tag so the package names line up with
-          # the GitHub Release assets. CI jobs fall back to git describe.
-          version="${{ inputs.release_tag }}"
+          # Release jobs pass an explicit package suffix so package names line
+          # up with the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.package_suffix }}"
+          if [ -z "$version" ]; then
+            version="${{ inputs.release_tag }}"
+          fi
           if [ -z "$version" ]; then
             version="$(git describe --always)"
           fi

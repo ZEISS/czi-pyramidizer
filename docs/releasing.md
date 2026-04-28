@@ -43,6 +43,19 @@ The repository contains a dedicated GitHub Actions release workflow in
 the release tag, creates archives, generates per-package SBOMs and checksums,
 and publishes the resulting archives to a GitHub Release.
 
+Manual workflow runs support two modes:
+
+- dry run: build a selected source ref, assemble the would-be release assets,
+  and upload them as workflow artifacts without creating or updating a GitHub
+  Release
+- publish: build the selected source ref and create or update the named GitHub
+  Release tag
+
+For dry runs, `source_ref` can be the branch under review and `release_tag` can
+be left empty; the workflow uses a `dry-run-<run-number>` package suffix. For
+published releases, `release_tag` must be set explicitly and should identify
+the tag being released.
+
 ## Static Linking
 
 Release binaries are built with static linking where practical. In particular,

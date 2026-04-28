@@ -12,12 +12,22 @@ name: Release
       - "v*.*.*"
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: Release tag to create or update
+      source_ref:
+        description: Git ref to build, for example a branch, tag, or commit SHA
         required: true
         type: string
+      release_tag:
+        description: Release tag/package suffix; required only when publishing
+        type: string
+        required: false
+        default: ""
+      publish_release:
+        description: Publish or update a GitHub Release instead of dry-run artifacts
+        required: false
+        default: false
+        type: boolean
       draft:
-        description: Create the release as a draft
+        description: Publish as a draft release
         required: false
         default: true
         type: boolean
@@ -32,57 +42,121 @@ permissions:
 
 env:
   BUILD_TYPE: Release
+  SOURCE_REF: >-
+    ${{
+      github.event_name == 'workflow_dispatch'
+      && inputs.source_ref
+      || github.ref_name
+    }}
   RELEASE_TAG: >-
     ${{
       github.event_name == 'workflow_dispatch'
       && inputs.release_tag
+      || github.event_name == 'workflow_dispatch'
+      && format('dry-run-{0}', github.run_number)
       || github.ref_name
     }}
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate manual release inputs
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          if [ "${{ inputs.publish_release }}" = "true" ] && [ -z "${{ inputs.release_tag }}" ]; then
+            echo "Publishing requires a non-empty release_tag input." >&2
+            exit 1
+          fi
+          if [ "${{ inputs.publish_release }}" != "true" ]; then
+            echo "Dry run: release assets will be uploaded as workflow artifacts."
+          fi
+
   windows-x64:
+    needs: preflight
     uses: ./.github/workflows/build-package-windows-x64.yml
     with:
-      release_tag: >-
+      source_ref: >-
         ${{
           github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
           && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
           || github.ref_name
         }}
       package_archive: true
       upload_name: release-windows-x64
 
   windows-arm64:
+    needs: preflight
     uses: ./.github/workflows/build-package-windows-arm64.yml
     with:
-      release_tag: >-
+      source_ref: >-
         ${{
           github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
           && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
           || github.ref_name
         }}
       package_archive: true
       upload_name: release-windows-arm64
 
   ubuntu-x64:
+    needs: preflight
     uses: ./.github/workflows/build-package-linux-x64.yml
     with:
-      release_tag: >-
+      source_ref: >-
         ${{
           github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
           && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
           || github.ref_name
         }}
       package_archive: true
       upload_name: release-ubuntu-x64
 
   alpine-linux-x64:
+    needs: preflight
     uses: ./.github/workflows/build-package-alpine-linux-x64.yml
     with:
-      release_tag: >-
+      source_ref: >-
         ${{
           github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
           && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
           || github.ref_name
         }}
       package_archive: true
@@ -100,7 +174,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
 
       - name: Download release packages
         uses: actions/download-artifact@v7
@@ -155,7 +229,15 @@ jobs:
           - docs/release-lgpl-relinking.md
           EOF
 
+      - name: Upload dry-run release assets
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-dry-run-${{ github.run_number }}
+          path: release-dist
+
       - name: Create or update GitHub release
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
           DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || 'false' }}
@@ -192,7 +274,7 @@ jobs:
           else
             gh release create \
               --title "$RELEASE_TAG" \
-              --target "$RELEASE_TAG" \
+              --target "$SOURCE_REF" \
               --notes-file release-notes.md \
               $create_draft_flag \
               $create_prerelease_flag \
