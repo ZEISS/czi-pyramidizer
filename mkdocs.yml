@@ -50,3 +50,6 @@ nav:
   - Usage:
       - CLI: usage/cli.md
       - Examples: usage/examples.md
+  - Releasing:
+      - Release Policy: releasing.md
+      - Static LGPL Relinking: release-lgpl-relinking.md

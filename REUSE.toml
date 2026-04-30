@@ -4,7 +4,7 @@ SPDX-PackageSupplier = "Carl Zeiss Microscopy GmbH <github.microscopy@zeiss.com>
 SPDX-PackageDownloadLocation = "https://github.com/ZEISS/czi-pyramidizer"
 
 [[annotations]]
-path = [".editorconfig", ".gitignore", ".mega-linter.yml", "CPPLINT.cfg", "mkdocs.yml", "README.md", "REUSE.toml", "THIRD_PARTY_LICENSES.txt", "cla_corporate.txt", "cla_individual.txt", "LICENSE", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "SECURITY.md"]
+path = [".editorconfig", ".gitignore", ".mega-linter.yml", "CPPLINT.cfg", "mkdocs.yml", "README.md", "README.release.md", "REUSE.toml", "THIRD_PARTY_LICENSES.txt", "cla_corporate.txt", "cla_individual.txt", "LICENSE", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "SECURITY.md"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
 SPDX-License-Identifier = "MIT"
@@ -31,4 +31,10 @@ SPDX-License-Identifier = "MIT"
 path = "docs/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2024 Carl Zeiss Microscopy GmbH"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "release/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Carl Zeiss Microscopy GmbH"
 SPDX-License-Identifier = "MIT"

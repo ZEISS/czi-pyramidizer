@@ -1,0 +1,201 @@
+---
+name: Build Package Ubuntu 24.04 x64
+
+# Shared workflow for building, testing, and packaging the Ubuntu 24.04 x64
+# variant of czi-pyramidizer. CI and release workflows call this file so the
+# packaging logic lives in one place without producing skipped jobs.
+
+'on':
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Optional legacy release tag used for checkout and package names
+        required: false
+        default: ""
+        type: string
+      source_ref:
+        description: Optional git ref to check out and build
+        required: false
+        default: ""
+        type: string
+      package_suffix:
+        description: Optional version or label used in package names
+        required: false
+        default: ""
+        type: string
+      package_archive:
+        description: Package the artifact directory into a release archive
+        required: false
+        default: false
+        type: boolean
+      upload_name:
+        description: Optional upload-artifact name override
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: Release
+  ARCHITECTURE: x64
+  VCPKG_REF: 2026.03.18
+
+jobs:
+  build-package:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: >-
+            ${{
+              inputs.source_ref != ''
+              && inputs.source_ref
+              || inputs.release_tag != '' && inputs.release_tag
+              || github.ref
+            }}
+
+      - name: Collect runner distribution
+        shell: bash
+        run: |
+          . /etc/os-release
+          if [ "$ID" != "ubuntu" ] || [ -z "$VERSION_ID" ]; then
+            echo "Expected an Ubuntu runner, got ID=${ID:-unknown} VERSION_ID=${VERSION_ID:-unknown}" >&2
+            exit 1
+          fi
+          {
+            echo "RUNNER_DISTRIBUTION=${ID}-${VERSION_ID}"
+            echo "RUNNER_PLATFORM=${ID}-${VERSION_ID}-x64"
+          } >> "$GITHUB_ENV"
+
+      - name: Pin vcpkg registry
+        shell: bash
+        run: |
+          git -C "$VCPKG_INSTALLATION_ROOT" fetch --depth 1 --force origin "refs/tags/${VCPKG_REF}:refs/tags/${VCPKG_REF}"
+          git -C "$VCPKG_INSTALLATION_ROOT" checkout --force "$VCPKG_REF"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev
+          sudo apt-get install -y libcurl4-openssl-dev
+          sudo apt-get install -y libssl-dev
+          vcpkg install azure-storage-blobs-cpp azure-identity-cpp
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+            -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
+            -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
+            -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON \
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+            ..
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
+
+      - name: Run Unit-Tests
+        shell: bash
+        run: |
+          cd build
+          ctest -C "${BUILD_TYPE}"
+
+      - name: Prepare artifact contents
+        shell: bash
+        run: |
+          mkdir -p artifact dist
+          # Release jobs pass an explicit package suffix so package names line
+          # up with the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.package_suffix }}"
+          if [ -z "$version" ]; then
+            version="${{ inputs.release_tag }}"
+          fi
+          if [ -z "$version" ]; then
+            version="$(git describe --always)"
+          fi
+          architecture_lower="$(printf '%s' "$ARCHITECTURE" | tr '[:upper:]' '[:lower:]')"
+          name="czi-pyramidizer-${RUNNER_DISTRIBUTION}-${architecture_lower}-${version}"
+          mkdir "artifact/${name}"
+          cp build/czi-pyramidizer/czi-pyramidizer "artifact/${name}/"
+          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
+          echo "artifactName=${name}" >> "$GITHUB_ENV"
+          echo "artifactPath=${{ github.workspace }}/artifact/${name}" >> "$GITHUB_ENV"
+
+      - name: Collect dependency versions for SBOM
+        shell: bash
+        run: |
+          vcpkg_version() {
+            # vcpkg list prints "<name> <version> ..." on the first matching
+            # line. We capture the second field so the SBOM reports the
+            # concrete Azure package versions linked into this build.
+            vcpkg list "$1" | awk 'NR == 1 { print $2 }'
+          }
+
+          azure_storage_version="$(vcpkg_version azure-storage-blobs-cpp)"
+          azure_identity_version="$(vcpkg_version azure-identity-cpp)"
+
+          # Export the observed package versions for the SPDX generator. This
+          # lets the Linux SBOM use the versions from apt/vcpkg instead of the
+          # fallback NOASSERTION values in sbom-components.json.
+          {
+            echo "SBOM_OPENCV_VERSION=$(dpkg-query -W -f='${Version}' libopencv-dev)"
+            echo "SBOM_AZURE_SDK_VERSION=azure-storage-blobs-cpp=${azure_storage_version}; azure-identity-cpp=${azure_identity_version}"
+            echo "SBOM_CURL_VERSION=$(dpkg-query -W -f='${Version}' libcurl4-openssl-dev)"
+            echo "SBOM_OPENSSL_VERSION=$(dpkg-query -W -f='${Version}' libssl-dev)"
+          } >> "$GITHUB_ENV"
+
+      - name: Generate SPDX SBOM
+        shell: bash
+        run: |
+          python3 release/generate-spdx-sbom.py \
+            --metadata release/sbom-components.json \
+            --project-version-file CMakeLists.txt \
+            --artifact-dir "artifact/${artifactName}" \
+            --artifact-name "${artifactName}" \
+            --platform "${RUNNER_PLATFORM}" \
+            --component-version "OpenCV=${SBOM_OPENCV_VERSION}" \
+            --component-version "Azure SDK for C++=${SBOM_AZURE_SDK_VERSION}" \
+            --component-version "curl=${SBOM_CURL_VERSION}" \
+            --component-version "OpenSSL=${SBOM_OPENSSL_VERSION}" \
+            --output "artifact/${artifactName}/${artifactName}.spdx.json"
+
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd "artifact/${artifactName}"
+          checksum_file="$(mktemp)"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+            | sort -z \
+            | xargs -0 sha256sum > "$checksum_file"
+          mv "$checksum_file" SHA256SUMS
+
+      - name: Archive release package
+        if: ${{ inputs.package_archive }}
+        shell: bash
+        run: |
+          # Linux release assets are published as tar.gz archives to preserve
+          # executable bits and align with common Unix packaging expectations.
+          tar -C artifact -czf "dist/${artifactName}.tar.gz" "${artifactName}"
+          echo "uploadPath=${{ github.workspace }}/dist/${artifactName}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Set artifact upload path
+        if: ${{ !inputs.package_archive }}
+        shell: bash
+        run: |
+          echo "uploadPath=${artifactPath}" >> "$GITHUB_ENV"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.upload_name != '' && inputs.upload_name || env.artifactName }}
+          path: ${{ env.uploadPath }}

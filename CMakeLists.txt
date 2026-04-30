@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.15)
  
 project(czi-pyramidizer
-      VERSION 0.1.2
+      VERSION 0.1.3
       HOMEPAGE_URL "https://dev.azure.com/ZEISSgroup/RMS-DEV/_git/czi_pyramidizer"
       DESCRIPTION "generate image-pyramid")
 
@@ -99,7 +99,7 @@ if (NOT CZIPYRAMIDIZER_HAVE_WIN32_API)
   find_package(Iconv REQUIRED)
 endif()
 
-find_package(OpenCV CONFIG REQUIRED ) # on Debian, install via "sudo apt install libopencv-dev"
+find_package(OpenCV CONFIG REQUIRED) # on Debian, install via "sudo apt install libopencv-dev"
 
 if (CZIPYRAMIDIZER_BUILD_UNITTESTS)
   enable_testing()

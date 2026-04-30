@@ -1,0 +1,282 @@
+---
+name: Release
+
+# Orchestrates a full GitHub Release from a tag (or a manual dry run). The
+# per-platform build logic lives in the platform-specific reusable workflows;
+# this workflow only coordinates the platform jobs, assembles the final release
+# assets, and publishes the GitHub Release entry.
+
+'on':
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Git ref to build, for example a branch, tag, or commit SHA
+        required: true
+        type: string
+      release_tag:
+        description: Release tag/package suffix; required only when publishing
+        type: string
+        required: false
+        default: ""
+      publish_release:
+        description: Publish or update a GitHub Release instead of dry-run artifacts
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: Publish as a draft release
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: Mark the release as a prerelease
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: Release
+  SOURCE_REF: >-
+    ${{
+      github.event_name == 'workflow_dispatch'
+      && inputs.source_ref
+      || github.ref_name
+    }}
+  RELEASE_TAG: >-
+    ${{
+      github.event_name == 'workflow_dispatch'
+      && inputs.release_tag
+      || github.event_name == 'workflow_dispatch'
+      && format('dry-run-{0}', github.run_number)
+      || github.ref_name
+    }}
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate manual release inputs
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          if [ "${{ inputs.publish_release }}" = "true" ] && [ -z "${{ inputs.release_tag }}" ]; then
+            echo "Publishing requires a non-empty release_tag input." >&2
+            exit 1
+          fi
+          if [ "${{ inputs.publish_release }}" != "true" ]; then
+            echo "Dry run: release assets will be uploaded as workflow artifacts."
+          fi
+
+  windows-x64:
+    needs: preflight
+    uses: ./.github/workflows/build-package-windows-x64.yml
+    with:
+      source_ref: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
+          && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
+          || github.ref_name
+        }}
+      package_archive: true
+      upload_name: release-windows-x64
+
+  windows-arm64:
+    needs: preflight
+    uses: ./.github/workflows/build-package-windows-arm64.yml
+    with:
+      source_ref: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
+          && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
+          || github.ref_name
+        }}
+      package_archive: true
+      upload_name: release-windows-arm64
+
+  ubuntu-x64:
+    needs: preflight
+    uses: ./.github/workflows/build-package-linux-x64.yml
+    with:
+      source_ref: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
+          && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
+          || github.ref_name
+        }}
+      package_archive: true
+      upload_name: release-ubuntu-x64
+
+  alpine-linux-x64:
+    needs: preflight
+    uses: ./.github/workflows/build-package-alpine-linux-x64.yml
+    with:
+      source_ref: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.source_ref
+          || github.ref_name
+        }}
+      package_suffix: >-
+        ${{
+          github.event_name == 'workflow_dispatch'
+          && inputs.release_tag != ''
+          && inputs.release_tag
+          || github.event_name == 'workflow_dispatch'
+          && format('dry-run-{0}', github.run_number)
+          || github.ref_name
+        }}
+      package_archive: true
+      upload_name: release-alpine-linux-x64
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs:
+      - windows-x64
+      - windows-arm64
+      - ubuntu-x64
+      - alpine-linux-x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_REF }}
+
+      - name: Download release packages
+        uses: actions/download-artifact@v7
+        with:
+          # Each platform job uploads exactly one archive with a stable name.
+          pattern: release-*
+          path: release-dist
+          merge-multiple: true
+
+      - name: Generate archive checksums
+        shell: bash
+        run: |
+          # This checksum file covers the published archives themselves. Each
+          # archive also contains its own internal SHA256SUMS file.
+          cd release-dist
+          checksum_file="$(mktemp)"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' \
+            | sort -z \
+            | xargs -0 sha256sum > "$checksum_file"
+          mv "$checksum_file" SHA256SUMS
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<EOF
+          ## Release Assets
+
+          This release provides binary packages for:
+
+          - Windows x64
+          - Windows ARM64
+          - Ubuntu 24.04 x64
+          - Alpine Linux x64
+
+          Each package contains the executable together with:
+
+          - \`LICENSE\`
+          - \`THIRD_PARTY_LICENSES.txt\`
+          - \`README.release.md\`
+          - a package-local SPDX JSON SBOM
+          - a package-local \`SHA256SUMS\`
+
+          The release also includes a top-level \`SHA256SUMS\` file for the
+          published archive assets.
+
+          ## Compliance Notes
+
+          \`czi-pyramidizer\` may statically link \`libCZI\`. See the project
+          documentation for release and relinking guidance:
+
+          - docs/releasing.md
+          - docs/release-lgpl-relinking.md
+          EOF
+
+      - name: Upload dry-run release assets
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish_release }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-dry-run-${{ github.run_number }}
+          path: release-dist
+
+      - name: Create or update GitHub release
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || 'false' }}
+          PRERELEASE: >-
+            ${{
+              github.event_name == 'workflow_dispatch'
+              && inputs.prerelease
+              || 'false'
+            }}
+        shell: bash
+        run: |
+          # Allow repeated dry runs: if the release already exists, replace the
+          # assets and update the notes instead of failing.
+          create_draft_flag=""
+          create_prerelease_flag=""
+          edit_draft_flag="--draft=false"
+          edit_prerelease_flag="--prerelease=false"
+          if [ "$DRAFT" = "true" ]; then
+            create_draft_flag="--draft"
+            edit_draft_flag="--draft=true"
+          fi
+          if [ "$PRERELEASE" = "true" ]; then
+            create_prerelease_flag="--prerelease"
+            edit_prerelease_flag="--prerelease=true"
+          fi
+
+          if gh release view -- "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload --clobber -- "$RELEASE_TAG" release-dist/*
+            gh release edit \
+              --notes-file release-notes.md \
+              $edit_draft_flag \
+              $edit_prerelease_flag \
+              -- "$RELEASE_TAG"
+          else
+            gh release create \
+              --title "$RELEASE_TAG" \
+              --target "$SOURCE_REF" \
+              --notes-file release-notes.md \
+              $create_draft_flag \
+              $create_prerelease_flag \
+              -- "$RELEASE_TAG" release-dist/*
+          fi

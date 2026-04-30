@@ -1,6 +1,9 @@
 ---
 name: CMake-Windows-x64
 
+# Thin CI entry point that validates the Windows x64 package build by calling
+# the shared build-package workflow.
+
 'on':
   push:
     branches: ["main"]
@@ -18,58 +21,4 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Cache vcpkg
-        uses: actions/cache@v4
-        with:
-          path: 'C:/vcpkg/installed'
-          key: vcpkg-x64-windows-
-          restore-keys: |
-            vcpkg-x64-windows-
-
-      - name: Install dependencies
-        run: |
-          vcpkg install opencv4[core,jpeg,png,quirc,tiff,webp]:x64-windows-static
-          vcpkg install azure-storage-blobs-cpp:x64-windows-static
-          vcpkg install azure-identity-cpp:x64-windows-static
-          vcpkg install 'curl[ssl]' --triplet x64-windows-static
-
-      - name: Configure CMake
-        shell: bash
-        run: |
-          mkdir build
-          cd build
-          cmake -A "${ARCHITECTURE}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DLIBCZI_BUILD_CURL_BASED_STREAM=ON -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake  -DVCPKG_TARGET_TRIPLET=x64-windows-static ..
-
-      - name: Build
-        shell: bash
-        run: |
-          cd build
-          cmake --build . --config "${BUILD_TYPE}" -j "$(nproc)"
-
-      - name: Run Unit-Tests
-        shell: bash
-        run: |
-          cd build
-          ctest -C "${BUILD_TYPE}"
-
-      - name: Prepare artifacts
-        shell: bash
-        run: |
-          mkdir artifact
-          name="czi-pyramidizer-windows-${ARCHITECTURE,,}-$(git describe --always)"
-          mkdir "artifact/${name}"
-          cp build/czi-pyramidizer/Release/czi-pyramidizer.exe "artifact/${name}/"
-          echo "artifactName=${name}" >> "$GITHUB_ENV"
-          echo "artifactPath=${{github.workspace}}/artifact/${name}" >> "$GITHUB_ENV"
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: ${{ env.artifactPath }}/
-          name: ${{ env.artifactName }}
+    uses: ./.github/workflows/build-package-windows-x64.yml

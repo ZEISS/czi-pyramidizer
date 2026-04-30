@@ -1,0 +1,112 @@
+{
+  "document": {
+    "supplier": "Organization: Carl Zeiss Microscopy GmbH",
+    "downloadLocation": "https://github.com/ZEISS/czi-pyramidizer"
+  },
+  "components": [
+    {
+      "name": "czi-pyramidizer",
+      "version": "NOASSERTION",
+      "supplier": "Organization: Carl Zeiss Microscopy GmbH",
+      "downloadLocation": "https://github.com/ZEISS/czi-pyramidizer",
+      "licenseDeclared": "MIT",
+      "licenseConcluded": "MIT",
+      "copyrightText": "Copyright 2025 Carl Zeiss Microscopy GmbH",
+      "purpose": "APPLICATION"
+    },
+    {
+      "name": "libCZI",
+      "version": "da3d7dcef3e1d9fb0f0b59325b0a4c77e081523c",
+      "supplier": "Organization: Carl Zeiss Microscopy GmbH",
+      "downloadLocation": "https://github.com/ZEISS/libczi",
+      "licenseDeclared": "LGPL-3.0-only",
+      "licenseConcluded": "LGPL-3.0-only",
+      "copyrightText": "Copyright 2017 Carl Zeiss Microscopy GmbH",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "CLI11",
+      "version": "2.6.1",
+      "supplier": "Organization: University of Cincinnati",
+      "downloadLocation": "https://github.com/CLIUtils/CLI11",
+      "licenseDeclared": "BSD-3-Clause",
+      "licenseConcluded": "BSD-3-Clause",
+      "copyrightText": "Copyright 2017-2025 University of Cincinnati",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "Microsoft GSL",
+      "version": "4.2.0",
+      "supplier": "Organization: Microsoft Corporation",
+      "downloadLocation": "https://github.com/microsoft/GSL",
+      "licenseDeclared": "MIT",
+      "licenseConcluded": "MIT",
+      "copyrightText": "Copyright 2015 Microsoft Corporation",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "RapidJSON",
+      "version": "24b5e7a8b27f42fa16b96fc70aade9106cf7102f",
+      "supplier": "Organization: Tencent",
+      "downloadLocation": "https://github.com/Tencent/rapidjson",
+      "licenseDeclared": "MIT",
+      "licenseConcluded": "MIT",
+      "copyrightText": "Copyright 2015 THL A29 Limited, a Tencent company, and Milo Yip",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "OpenCV",
+      "version": "NOASSERTION",
+      "supplier": "Organization: OpenCV",
+      "downloadLocation": "https://github.com/opencv/opencv",
+      "licenseDeclared": "Apache-2.0",
+      "licenseConcluded": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "Azure SDK for C++",
+      "version": "NOASSERTION",
+      "supplier": "Organization: Microsoft Corporation",
+      "downloadLocation": "https://github.com/Azure/azure-sdk-for-cpp",
+      "licenseDeclared": "MIT",
+      "licenseConcluded": "MIT",
+      "copyrightText": "Copyright Microsoft Corporation",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "curl",
+      "version": "NOASSERTION",
+      "supplier": "Organization: curl",
+      "downloadLocation": "https://curl.se/",
+      "licenseDeclared": "curl",
+      "licenseConcluded": "curl",
+      "copyrightText": "NOASSERTION",
+      "purpose": "LIBRARY"
+    },
+    {
+      "name": "OpenSSL",
+      "version": "NOASSERTION",
+      "supplier": "Organization: OpenSSL Software Foundation",
+      "downloadLocation": "https://www.openssl.org/",
+      "licenseDeclared": "Apache-2.0",
+      "licenseConcluded": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "purpose": "LIBRARY",
+      "platforms": ["alpine-linux-x64"],
+      "platformPrefixes": ["ubuntu-"]
+    },
+    {
+      "name": "Iconv",
+      "version": "NOASSERTION",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "purpose": "LIBRARY",
+      "platforms": ["alpine-linux-x64"],
+      "platformPrefixes": ["ubuntu-"]
+    }
+  ]
+}

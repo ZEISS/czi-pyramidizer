@@ -1,0 +1,7 @@
+---
+# MegaLinter v7 ships actionlint 1.7.1, whose built-in GitHub-hosted runner
+# label list predates the Windows ARM64 hosted runner. GitHub's current runner
+# documentation lists "windows-11-arm" as the Windows ARM64 workflow label.
+self-hosted-runner:
+  labels:
+    - windows-11-arm

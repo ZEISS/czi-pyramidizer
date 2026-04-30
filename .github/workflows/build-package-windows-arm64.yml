@@ -1,0 +1,239 @@
+---
+name: Build Package Windows ARM64
+
+# Shared workflow for building, testing, and packaging the Windows ARM64
+# variant of czi-pyramidizer. CI and release workflows call this file so the
+# packaging logic lives in one place without producing skipped jobs.
+
+'on':
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Optional legacy release tag used for checkout and package names
+        required: false
+        default: ""
+        type: string
+      source_ref:
+        description: Optional git ref to check out and build
+        required: false
+        default: ""
+        type: string
+      package_suffix:
+        description: Optional version or label used in package names
+        required: false
+        default: ""
+        type: string
+      package_archive:
+        description: Package the artifact directory into a release archive
+        required: false
+        default: false
+        type: boolean
+      upload_name:
+        description: Optional upload-artifact name override
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BUILD_TYPE: Release
+  ARCHITECTURE: ARM64
+  VCPKG_REF: 2026.03.18
+
+jobs:
+  build-package:
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: >-
+            ${{
+              inputs.source_ref != ''
+              && inputs.source_ref
+              || inputs.release_tag != '' && inputs.release_tag
+              || github.ref
+            }}
+
+      - name: Cache vcpkg
+        uses: actions/cache@v5
+        with:
+          path: 'C:/vcpkg/installed'
+          key: >-
+            ${{
+              inputs.package_archive
+              && format('release-vcpkg-arm64-windows-{0}', env.VCPKG_REF)
+              || format('vcpkg-arm64-windows-{0}', env.VCPKG_REF)
+            }}
+          restore-keys: |
+            release-vcpkg-arm64-windows-${{ env.VCPKG_REF }}
+            vcpkg-arm64-windows-${{ env.VCPKG_REF }}
+
+      - name: Pin vcpkg registry
+        shell: pwsh
+        run: |
+          git -C C:/vcpkg fetch --depth 1 --force origin "refs/tags/${env:VCPKG_REF}:refs/tags/${env:VCPKG_REF}"
+          git -C C:/vcpkg checkout --force "$env:VCPKG_REF"
+
+      - name: Install dependencies
+        run: |
+          vcpkg install opencv4[core,jpeg,png,quirc,tiff,webp]:arm64-windows-static
+          vcpkg install azure-storage-blobs-cpp:arm64-windows-static
+          vcpkg install azure-identity-cpp:arm64-windows-static
+          vcpkg install 'curl[ssl]' --triplet arm64-windows-static
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          mkdir build
+          cd build
+          cmake -A "${ARCHITECTURE}" \
+              -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+              -DLIBCZI_BUILD_CURL_BASED_STREAM=ON \
+              -DLIBCZI_BUILD_AZURESDK_BASED_STREAM=ON \
+              -DLIBCZI_BUILD_PREFER_EXTERNALPACKAGE_LIBCURL=ON \
+              -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake \
+              -DVCPKG_TARGET_TRIPLET=arm64-windows-static ..
+
+      - name: Build
+        shell: bash
+        run: |
+          cd build
+          cmake --build . --config "${BUILD_TYPE}" -j
+
+      - name: Run Unit-Tests
+        shell: bash
+        run: |
+          cd build
+          ctest -C "${BUILD_TYPE}"
+
+      - name: Prepare artifact contents
+        shell: bash
+        run: |
+          mkdir -p artifact dist
+          # Release jobs pass an explicit package suffix so package names line
+          # up with the GitHub Release assets. CI jobs fall back to git describe.
+          version="${{ inputs.package_suffix }}"
+          if [ -z "$version" ]; then
+            version="${{ inputs.release_tag }}"
+          fi
+          if [ -z "$version" ]; then
+            version="$(git describe --always)"
+          fi
+          architecture_lower="$(printf '%s' "$ARCHITECTURE" | tr '[:upper:]' '[:lower:]')"
+          name="czi-pyramidizer-windows-${architecture_lower}-${version}"
+          mkdir "artifact/${name}"
+          cp build/czi-pyramidizer/Release/czi-pyramidizer.exe "artifact/${name}/"
+          cp LICENSE THIRD_PARTY_LICENSES.txt README.release.md "artifact/${name}/"
+          echo "artifactName=${name}" >> "$GITHUB_ENV"
+          echo "artifactPath=${{ github.workspace }}/artifact/${name}" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Collect dependency versions for SBOM
+        shell: pwsh
+        run: |
+          function Get-VcpkgVersion([string]$PackageName, [string]$Triplet) {
+            # Query by base port name, then match the installed namespec for
+            # the requested triplet while allowing an optional feature segment
+            # such as curl[ssl]:arm64-windows-static.
+            $escapedPackageName = [regex]::Escape($PackageName)
+            $escapedTriplet = [regex]::Escape($Triplet)
+            $pattern = "^{0}(?:\[[^\]]+\])?:{1}\s+(\S+)" -f $escapedPackageName, $escapedTriplet
+
+            foreach ($line in (& vcpkg list $PackageName)) {
+              if ($line -match $pattern) {
+                return $Matches[1]
+              }
+            }
+
+            return $null
+          }
+
+          function Get-SbomVersion([string]$DisplayName, [string]$PackageName, [string]$Triplet) {
+            $version = Get-VcpkgVersion $PackageName $Triplet
+            if (-not $version) {
+              Write-Warning "Unable to determine version for $DisplayName from '$PackageName' with triplet '$Triplet'; using NOASSERTION."
+              return "NOASSERTION"
+            }
+            return $version
+          }
+
+          $triplet = "arm64-windows-static"
+          $opencvVersion = Get-SbomVersion "OpenCV" "opencv4" $triplet
+          $azureStorageVersion = Get-SbomVersion "azure-storage-blobs-cpp" "azure-storage-blobs-cpp" $triplet
+          $azureIdentityVersion = Get-SbomVersion "azure-identity-cpp" "azure-identity-cpp" $triplet
+          $curlVersion = Get-SbomVersion "curl" "curl" $triplet
+
+          # Persist the versions into the workflow environment so the SPDX
+          # generator can replace NOASSERTION with the versions from the actual
+          # dependency set used by this build.
+          @(
+            "SBOM_OPENCV_VERSION=$opencvVersion",
+            "SBOM_AZURE_SDK_VERSION=azure-storage-blobs-cpp=$azureStorageVersion; azure-identity-cpp=$azureIdentityVersion",
+            "SBOM_CURL_VERSION=$curlVersion"
+          ) | Add-Content $env:GITHUB_ENV
+
+      - name: Generate SPDX SBOM
+        shell: pwsh
+        run: |
+          # Use versions observed in the installed dependency set rather than
+          # the static metadata defaults, so the Windows SBOM reflects the
+          # actual vcpkg packages that were linked for this build.
+          python release/generate-spdx-sbom.py `
+            --metadata release/sbom-components.json `
+            --project-version-file CMakeLists.txt `
+            --artifact-dir "artifact/$env:artifactName" `
+            --artifact-name "$env:artifactName" `
+            --platform "windows-arm64" `
+            --component-version "OpenCV=$env:SBOM_OPENCV_VERSION" `
+            --component-version "Azure SDK for C++=$env:SBOM_AZURE_SDK_VERSION" `
+            --component-version "curl=$env:SBOM_CURL_VERSION" `
+            --output "artifact/$env:artifactName/$env:artifactName.spdx.json"
+
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          Push-Location "artifact/$env:artifactName"
+          Get-ChildItem -File |
+            Where-Object { $_.Name -ne "SHA256SUMS" } |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (
+                Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName
+              ).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            } |
+            Set-Content -Encoding ascii SHA256SUMS
+          Pop-Location
+
+      - name: Archive release package
+        if: ${{ inputs.package_archive }}
+        shell: pwsh
+        run: |
+          # Release jobs publish a single archive per platform. Regular CI jobs
+          # upload the unpacked artifact directory instead.
+          Push-Location artifact
+          Compress-Archive `
+            -Path "$env:artifactName" `
+            -DestinationPath "../dist/$env:artifactName.zip"
+          Pop-Location
+          echo "uploadPath=${{ github.workspace }}/dist/$env:artifactName.zip" >> $env:GITHUB_ENV
+
+      - name: Set artifact upload path
+        if: ${{ !inputs.package_archive }}
+        shell: pwsh
+        run: |
+          echo "uploadPath=$env:artifactPath" >> $env:GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.upload_name != '' && inputs.upload_name || env.artifactName }}
+          path: ${{ env.uploadPath }}
